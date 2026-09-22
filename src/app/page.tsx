@@ -16,7 +16,7 @@ import {
   Mail,
   CheckCircle2,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 interface TeamMember {
   id: string;
@@ -94,6 +94,12 @@ export default function Home() {
   useEffect(() => {
     const loadTeam = async () => {
       try {
+        if (!isSupabaseConfigured || !supabase) {
+          console.log("Supabase not configured, using default data");
+          setLoading(false);
+          return;
+        }
+
         const { data, error } = await supabase
           .from("team_members")
           .select("*")
@@ -107,7 +113,7 @@ export default function Home() {
           setTeam(data);
         }
       } catch (error) {
-        console.log("Supabase not configured, using default data");
+        console.log("Error loading team data, using default data");
       } finally {
         setLoading(false);
       }
@@ -122,6 +128,14 @@ export default function Home() {
     setSubmitMessage("");
 
     try {
+      if (!isSupabaseConfigured || !supabase) {
+        setSubmitMessage(
+          "⚠️ Supabase가 설정되지 않았습니다. 환경 변수를 확인해주세요."
+        );
+        setContactForm({ name: "", email: "", message: "" });
+        return;
+      }
+
       const { error } = await supabase.from("contact_submissions").insert([
         {
           name: contactForm.name,
@@ -141,7 +155,7 @@ export default function Home() {
       }
     } catch (error) {
       setSubmitMessage(
-        "⚠️ Supabase가 설정되지 않았습니다. 환경 변수를 확인해주세요."
+        "⚠️ 메시지 전송 중 오류가 발생했습니다."
       );
     } finally {
       setSubmitting(false);
