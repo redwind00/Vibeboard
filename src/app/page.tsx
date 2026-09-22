@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Zap,
   Shield,
@@ -13,8 +16,57 @@ import {
   Mail,
   CheckCircle2,
 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+
+interface TeamMember {
+  id: string;
+  name: string;
+  role: string;
+  description: string;
+}
+
+interface ContactSubmission {
+  name: string;
+  email: string;
+  message: string;
+}
 
 export default function Home() {
+  const [team, setTeam] = useState<TeamMember[]>([
+    {
+      id: "1",
+      name: "김민준",
+      role: "CEO & 창립자",
+      description: "10년의 기술 리더십 경험",
+    },
+    {
+      id: "2",
+      name: "이수진",
+      role: "CTO",
+      description: "클라우드 아키텍처 전문가",
+    },
+    {
+      id: "3",
+      name: "박지현",
+      role: "리드 개발자",
+      description: "풀스택 개발 및 DevOps",
+    },
+    {
+      id: "4",
+      name: "최영민",
+      role: "디자인 리드",
+      description: "UX/UI 디자인 전문가",
+    },
+  ]);
+  const [loading, setLoading] = useState(true);
+  const [contactForm, setContactForm] = useState({
+    name: "",
+    email: "",
+    message: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState("");
+
   const features = [
     {
       icon: Zap,
@@ -38,28 +90,64 @@ export default function Home() {
     },
   ];
 
-  const team = [
-    {
-      name: "김민준",
-      role: "CEO & 창립자",
-      description: "10년의 기술 리더십 경험",
-    },
-    {
-      name: "이수진",
-      role: "CTO",
-      description: "클라우드 아키텍처 전문가",
-    },
-    {
-      name: "박지현",
-      role: "리드 개발자",
-      description: "풀스택 개발 및 DevOps",
-    },
-    {
-      name: "최영민",
-      role: "디자인 리드",
-      description: "UX/UI 디자인 전문가",
-    },
-  ];
+  // Load team from Supabase
+  useEffect(() => {
+    const loadTeam = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("team_members")
+          .select("*")
+          .order("id", { ascending: true });
+
+        if (error) {
+          console.log(
+            "Team table not found in Supabase, using default data"
+          );
+        } else if (data && data.length > 0) {
+          setTeam(data);
+        }
+      } catch (error) {
+        console.log("Supabase not configured, using default data");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadTeam();
+  }, []);
+
+  const handleContactSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setSubmitMessage("");
+
+    try {
+      const { error } = await supabase.from("contact_submissions").insert([
+        {
+          name: contactForm.name,
+          email: contactForm.email,
+          message: contactForm.message,
+          created_at: new Date().toISOString(),
+        },
+      ]);
+
+      if (error) {
+        setSubmitMessage("❌ 오류가 발생했습니다. 다시 시도해주세요.");
+      } else {
+        setSubmitMessage(
+          "✅ 메시지가 전송되었습니다. 감사합니다!"
+        );
+        setContactForm({ name: "", email: "", message: "" });
+      }
+    } catch (error) {
+      setSubmitMessage(
+        "⚠️ Supabase가 설정되지 않았습니다. 환경 변수를 확인해주세요."
+      );
+    } finally {
+      setSubmitting(false);
+      setTimeout(() => setSubmitMessage(""), 5000);
+    }
+  };
 
   return (
     <div className="space-y-20">
@@ -232,15 +320,94 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Footer CTA */}
+      {/* Contact Form Section */}
       <section className="space-y-8 border-t pt-12">
         <div className="space-y-4 text-center">
-          <h3 className="text-2xl font-bold">연락 정보</h3>
+          <h3 className="text-2xl font-bold">문의하기</h3>
           <p className="text-muted-foreground">
-            궁금한 점이 있으시면 언제든 연락주세요
+            궁금한 점이 있으시면 아래 양식을 작성해주세요.
           </p>
         </div>
 
+        <div className="max-w-2xl mx-auto">
+          <Card className="border-0 bg-card">
+            <CardHeader>
+              <CardTitle>메시지 전송</CardTitle>
+              <CardDescription>
+                Supabase를 통해 안전하게 전송됩니다
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleContactSubmit} className="space-y-4">
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium mb-2">
+                    이름
+                  </label>
+                  <Input
+                    id="name"
+                    placeholder="이름을 입력해주세요"
+                    value={contactForm.name}
+                    onChange={(e) =>
+                      setContactForm({ ...contactForm, name: e.target.value })
+                    }
+                    required
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium mb-2">
+                    이메일
+                  </label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="이메일을 입력해주세요"
+                    value={contactForm.email}
+                    onChange={(e) =>
+                      setContactForm({ ...contactForm, email: e.target.value })
+                    }
+                    required
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="message" className="block text-sm font-medium mb-2">
+                    메시지
+                  </label>
+                  <Textarea
+                    id="message"
+                    placeholder="메시지를 입력해주세요"
+                    value={contactForm.message}
+                    onChange={(e) =>
+                      setContactForm({ ...contactForm, message: e.target.value })
+                    }
+                    required
+                    disabled={submitting}
+                    rows={5}
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full"
+                >
+                  {submitting ? "전송 중..." : "메시지 전송"}
+                </Button>
+
+                {submitMessage && (
+                  <p className="text-center text-sm mt-4">{submitMessage}</p>
+                )}
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      {/* Contact Info */}
+      <section className="space-y-8 py-8">
         <div className="grid gap-6 md:grid-cols-3">
           <Card className="border-0 bg-card text-center">
             <CardHeader>
@@ -248,7 +415,7 @@ export default function Home() {
               <CardTitle>이메일</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">contact@techcompany.com</p>
+              <p className="text-muted-foreground">contact@techvision.com</p>
             </CardContent>
           </Card>
 
@@ -258,7 +425,7 @@ export default function Home() {
               <CardTitle>LinkedIn</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">@techcompany</p>
+              <p className="text-muted-foreground">@techvision</p>
             </CardContent>
           </Card>
 
@@ -268,7 +435,7 @@ export default function Home() {
               <CardTitle>GitHub</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">github.com/techcompany</p>
+              <p className="text-muted-foreground">github.com/techvision</p>
             </CardContent>
           </Card>
         </div>
